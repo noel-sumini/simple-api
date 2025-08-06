@@ -12,12 +12,6 @@ pipeline {
   }
 
   stages {
-    stage('Init') {
-      steps {
-        cleanWs()
-      }
-    }
-
     stage('Checkout') {
       steps {
         git url: "${GIT_REPO}", branch: 'main'
@@ -26,7 +20,7 @@ pipeline {
 
     stage('Test') {
       steps {
-        // 필요 없으면 제거 가능
+        // 필요 없으면 이 스테이지를 통째로 제거하세요.
         sh 'pytest --maxfail=1 --disable-warnings -q'
       }
     }
@@ -65,15 +59,12 @@ pipeline {
               ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
                 cd ${APP_DIR}
                 docker build -t ${IMAGE_NAME} .
-                # 기존 컨테이너 중지/삭제
+                # 기존 컨테이너가 있으면 중지 및 삭제
                 if docker ps -a --format '{{.Names}}' | grep -q '^${CONTAINER_NAME}\$'; then
                   docker rm -f ${CONTAINER_NAME}
                 fi
                 # 새 컨테이너 실행
-                docker run -d \\
-                  --name ${CONTAINER_NAME} \\
-                  -p 3000:3000 \\
-                  ${IMAGE_NAME}
+                docker run -d --name ${CONTAINER_NAME} -p 3000:3000 ${IMAGE_NAME}
               EOF
             """
           }
@@ -84,10 +75,10 @@ pipeline {
 
   post {
     success {
-      echo '✅ Deploy Success'
+      echo '✅ 배포 완료!'
     }
     failure {
-      echo '❌ Deploy Failed'
+      echo '❌ 배포 실패. 로그를 확인하세요.'
     }
   }
 }
