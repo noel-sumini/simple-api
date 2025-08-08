@@ -17,7 +17,7 @@ pipeline {
       steps {
         timeout(time: 20, unit: 'MINUTES') {
           sh '''
-            set -euxo pipefail
+            set -eux
             : "${DOCKER_IMAGE:?DOCKER_IMAGE not set}"   # 예: ysm2820/simple-api
             docker build -t "${DOCKER_IMAGE}:${SHORT_COMMIT}" -t "${DOCKER_IMAGE}:latest" .
           '''
@@ -34,7 +34,7 @@ pipeline {
             passwordVariable: 'DOCKER_PASS'
           )]) {
             sh '''
-              set -euxo pipefail
+              set -eux
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
               docker push "${DOCKER_IMAGE}:${SHORT_COMMIT}"
               docker push "${DOCKER_IMAGE}:latest"
