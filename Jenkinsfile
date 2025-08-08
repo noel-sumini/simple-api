@@ -16,7 +16,7 @@ pipeline {
           sshagent([env.SSH_CRED_ID]) {
             sh """
               ssh -o StrictHostKeyChecking=no ${env.DEPLOY_USER}@${env.DEPLOY_HOST} \\
-                'sudo rm -rf ${env.APP_DIR} && sudo mkdir -p ${env.APP_DIR}'
+                'rm -rf ${env.APP_DIR} && mkdir -p ${env.APP_DIR}'
             """
           }
         }
