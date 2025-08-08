@@ -35,22 +35,17 @@ pipeline {
         }
       }
     }
-
     stage('Build & Deploy') {
       steps {
         timeout(time: 5, unit: 'MINUTES') {
           sshagent([env.SSH_CRED_ID]) {
             sh """
-              ssh -o StrictHostKeyChecking=no ${env.DEPLOY_USER}@${env.DEPLOY_HOST} << 'EOF'
-                cd ${env.APP_DIR}
-                sudo docker build -t ${env.IMAGE_NAME} .
-                # 기존 컨테이너가 있으면 중지 및 삭제
-                if sudo docker ps -a --format '{{.Names}}' | grep -q '^${env.CONTAINER_NAME}\$'; then
-                  sudo docker rm -f ${env.CONTAINER_NAME}
-                fi
-                # 새 컨테이너 실행
-                sudo docker run -d --name ${env.CONTAINER_NAME} -p 3000:3000 ${env.IMAGE_NAME}
-              EOF
+              ssh -o StrictHostKeyChecking=no ${env.DEPLOY_USER}@${env.DEPLOY_HOST} "\
+                cd ${env.APP_DIR} && \
+                docker build -t ${env.IMAGE_NAME} . && \
+                (docker rm -f ${env.CONTAINER_NAME} || true) && \
+                docker run -d --name ${env.CONTAINER_NAME} -p 3000:3000 ${env.IMAGE_NAME} \
+              "
             """
           }
         }
