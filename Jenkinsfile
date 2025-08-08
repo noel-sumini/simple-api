@@ -56,10 +56,10 @@ pipeline {
 
   post {
     success {
-      echo '✅ Deploy Successed'
+      echo '✅ Deploy Success'
     }
     failure {
-      echo '❌ Deploy Failed'
+      echo '❌ Deploy Fail'
     }
   }
 }
