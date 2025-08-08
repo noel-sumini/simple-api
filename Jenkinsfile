@@ -56,10 +56,10 @@ pipeline {
 
   post {
     success {
-      echo '✅ 배포 완료!'
+      echo '✅ Deploy Success'
     }
     failure {
-      echo '❌ 배포 실패'
+      echo '❌ Deploy Fail'
     }
   }
 }
