@@ -88,9 +88,9 @@ pipeline {
 
   post {
     success { echo "✅ Deploy 성공: ${DOCKER_IMAGE}:${SHORT_COMMIT}" }
-    failure { echo "❌ Deploy Fail" }
+    failure { echo "❌ Deploy 실패" }
     always {
-      sh 'docker image prune -f || true'
+      sh 'docker image prune -f || true' // image cache 정리 목적
     }
   }
 }
