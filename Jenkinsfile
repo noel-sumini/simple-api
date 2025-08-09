@@ -3,13 +3,17 @@ pipeline {
   triggers { githubPush() }
 
   environment {
-    SHORT_COMMIT = "${GIT_COMMIT[0..6]}"  
+    COMPOSE_FILES  = 'docker-compose.yml'
   }
 
-  stages {
+ stages {
     stage('Checkout') {
       steps {
-        git url: env.GIT_REPO, branch: 'main'
+        checkout scm
+        script {
+          env.SHORT_COMMIT = sh(script: "git rev-parse --short=7 HEAD || echo unknown", returnStdout: true).trim()
+          echo "SHORT_COMMIT=${env.SHORT_COMMIT}"
+        }
       }
     }
 
@@ -17,7 +21,7 @@ pipeline {
       steps {
         timeout(time: 20, unit: 'MINUTES') {
           sh '''
-            : "${DOCKER_IMAGE:?DOCKER_IMAGE not set}"  
+            : "${DOCKER_IMAGE:?DOCKER_IMAGE not set}"
             docker build -t "${DOCKER_IMAGE}:${SHORT_COMMIT}" -t "${DOCKER_IMAGE}:latest" .
           '''
         }
@@ -43,9 +47,21 @@ pipeline {
       }
     }
 
-    stage('Pull (remote)') {
+    stage('Sync compose files to remote') {
       steps {
-        timeout(time: 5, unit: 'MINUTES') {
+        sshagent([env.SSH_CRED_ID]) {
+          sh """
+            ssh -o StrictHostKeyChecking=no ${env.DEPLOY_USER}@${env.DEPLOY_HOST} 'mkdir -p ${env.REMOTE_DIR}'
+            scp -o StrictHostKeyChecking=no docker-compose*.yml ${env.DEPLOY_USER}@${env.DEPLOY_HOST}:${env.REMOTE_DIR}/
+            # scp -o StrictHostKeyChecking=no .env ${env.DEPLOY_USER}@${env.DEPLOY_HOST}:${env.REMOTE_DIR}/
+          """
+        }
+      }
+    }
+
+    stage('Deploy with docker-compose (remote)') {
+      steps {
+        timeout(time: 10, unit: 'MINUTES') {
           sshagent([env.SSH_CRED_ID]) {
             withCredentials([usernamePassword(
               credentialsId: 'dockerhub-creds',
@@ -53,28 +69,17 @@ pipeline {
               passwordVariable: 'DOCKER_PASS'
             )]) {
               sh """
-                ssh -o StrictHostKeyChecking=no ${env.DEPLOY_USER}@${env.DEPLOY_HOST} "\
-                  (echo '${DOCKER_PASS}' | docker login -u '${DOCKER_USER}' --password-stdin || true) && \
-                  docker pull ${env.DOCKER_IMAGE}:${SHORT_COMMIT} \
-                "
+                ssh -o StrictHostKeyChecking=no ${env.DEPLOY_USER}@${env.DEPLOY_HOST} '\
+                  cd ${env.REMOTE_DIR} && \
+                  export DOCKER_IMAGE="${env.DOCKER_IMAGE}" && \
+                  export IMAGE_TAG="${env.SHORT_COMMIT}" && \
+                  echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin || true && \
+                  docker compose -f ${env.COMPOSE_FILES} pull && \
+                  docker compose -f ${env.COMPOSE_FILES} up -d && \
+                  docker logout || true \
+                '
               """
             }
-          }
-        }
-      }
-    }
-
-    stage('Deploy (remote)') {
-      steps {
-        timeout(time: 5, unit: 'MINUTES') {
-          sshagent([env.SSH_CRED_ID]) {
-            sh """
-              ssh -o StrictHostKeyChecking=no ${env.DEPLOY_USER}@${env.DEPLOY_HOST} "\
-                (docker rm -f ${env.CONTAINER_NAME} || true) && \
-                docker run -d --name ${env.CONTAINER_NAME} -p 3000:3000 \
-                  ${env.DOCKER_IMAGE}:${SHORT_COMMIT} \
-              "
-            """
           }
         }
       }
@@ -82,7 +87,10 @@ pipeline {
   }
 
   post {
-    success { echo 'Deploy 성공' }
-    failure { echo 'Deploy Fail' }
+    success { echo "✅ Deploy 성공: ${DOCKER_IMAGE}:${SHORT_COMMIT}" }
+    failure { echo "❌ Deploy Fail" }
+    always {
+      sh 'docker image prune -f || true'
+    }
   }
 }

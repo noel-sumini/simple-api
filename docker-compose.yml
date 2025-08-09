@@ -1,0 +1,16 @@
+# docker-compose.yml
+version: "3.8"
+
+services:
+  api:
+    image: "${DOCKER_IMAGE:?unset}:${IMAGE_TAG:?unset}"   # 예: yourid/simple-api:abcd123
+    ports:
+      - "3000:18080"                                      # 현재 run -p 3000:18080 대응
+    restart: always
+    env_file:
+      - .env                                              # 민감값은 넣지 말고 서버에만 두기 권장
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:18080/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
